@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CTF Crypto Solver</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0b0e13;--bg2:#111620;--bg3:#1a2030;--border:#1e2d45;--green:#00ff88;--green-dim:#00b85e;--cyan:#00cfff;--yellow:#ffd94a;--red:#ff4d6a;--gray:#5a6a7e;--text:#c8d8ea;--font:'Courier New',monospace}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font)}
+.wrapper{max-width:1300px;margin:0 auto;padding:20px 18px 40px}
+header{display:flex;align-items:center;gap:16px;padding:22px 0 18px;border-bottom:1px solid var(--border);margin-bottom:26px}
+header h1{font-size:1.35rem;color:var(--cyan)}
+header p{font-size:.78rem;color:var(--gray);margin-top:2px}
+.grid{display:grid;grid-template-columns:420px 1fr;gap:22px;align-items:start}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.panel-header{background:var(--bg3);border-bottom:1px solid var(--border);padding:9px 14px;font-size:.72rem;color:var(--cyan);text-transform:uppercase}
+.panel-body{padding:16px}
+label{display:block;font-size:.75rem;color:var(--cyan);margin-bottom:5px}
+label span{color:var(--gray);font-size:.7rem;margin-left:6px}
+textarea,input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font);font-size:.82rem;padding:9px 11px;outline:none}
+textarea{min-height:150px;resize:vertical}
+.field{margin-bottom:14px}
+.dropzone{border:2px dashed var(--border);border-radius:6px;padding:22px 14px;text-align:center;cursor:pointer;position:relative}
+.dropzone:hover{border-color:var(--cyan)}
+.dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dropzone p{font-size:.76rem;color:var(--gray)}
+#file-list{margin-top:8px;font-size:.72rem;color:var(--green-dim)}
+.btn-solve{width:100%;padding:12px;background:linear-gradient(135deg,#003322,#005533);border:1px solid var(--green-dim);border-radius:6px;color:var(--green);font-family:var(--font);font-size:.95rem;font-weight:bold;letter-spacing:2px;cursor:pointer;text-transform:uppercase;margin-top:6px}
+.btn-solve:hover{background:linear-gradient(135deg,#004422,#007744)}
+.btn-solve:disabled{opacity:.5}
+#terminal{background:var(--bg);border-radius:0 0 8px 8px;padding:14px;font-size:.8rem;line-height:1.6;min-height:400px;max-height:72vh;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.log-line{display:flex;gap:10px;padding:1px 0}
+.log-ts{color:var(--gray);flex-shrink:0;font-size:.72rem}
+.log-cat{width:70px;flex-shrink:0;text-align:right;font-size:.72rem;color:var(--cyan)}
+.log-msg{flex:1}
+.lvl-info .log-msg{color:var(--text)}
+.lvl-success .log-msg{color:var(--green);font-weight:bold}
+.lvl-warning .log-msg{color:var(--yellow)}
+.lvl-error .log-msg{color:var(--red)}
+#flag-banner{display:none;margin-top:16px;border-radius:8px;border:2px solid var(--green);background:linear-gradient(135deg,#002211,#003322);padding:18px 20px}
+#flag-banner h2{color:var(--green);font-size:1rem;margin-bottom:8px}
+#flag-value{color:#fff;font-size:1.05rem;background:#00000055;padding:8px 12px;border-radius:4px;margin-bottom:10px;word-break:break-all}
+#flag-method{font-size:.76rem;color:var(--green-dim)}
+#report-banner{display:none;margin-top:16px;border-radius:8px;border:1px solid var(--yellow);background:#1a1500;padding:16px 18px}
+#report-banner h2{color:var(--yellow);font-size:.9rem;margin-bottom:10px}
+#report-content{font-size:.78rem;line-height:1.7}
+#spinner{display:none;color:var(--cyan);font-size:.82rem;padding:4px 0}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <header>
+    <div>
+      <h1>CTF Crypto Solver</h1>
+      <p>Automated cryptographic attack engine - 100% local - no AI APIs</p>
+    </div>
+  </header>
+  <div class="grid">
+    <div>
+      <div class="panel">
+        <div class="panel-header">Input</div>
+        <div class="panel-body">
+          <form id="solve-form" enctype="multipart/form-data">
+            <div class="field">
+              <label>Ciphertext / Hash <span>(text, hex, Base64, numbers)</span></label>
+              <textarea name="ciphertext" id="ciphertext" placeholder="Paste ciphertext, hash, or encoded string here..."></textarea>
+            </div>
+            <div class="field">
+              <label>Upload Files <span>(.txt .py .pem .enc .json .bin .key)</span></label>
+              <div class="dropzone" id="dropzone">
+                <p><strong>Click or drag files</strong></p>
+                <p>PEM keys, JSON params, encrypted blobs, scripts</p>
+                <input type="file" name="files" id="file-input" multiple>
+              </div>
+              <div id="file-list"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="field">
+                <label>Flag Format</label>
+                <input type="text" name="flag_format" id="flag-format" value="flag{" placeholder="flag{">
+              </div>
+              <div class="field">
+                <label>Wordlist Path</label>
+                <input type="text" name="wordlist" id="wordlist" value="{{ default_wordlist }}">
+              </div>
+            </div>
+            <button type="submit" class="btn-solve" id="solve-btn">SOLVE</button>
+            <div id="spinner">Running attack engine...</div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div id="flag-banner">
+        <h2>FLAG FOUND</h2>
+        <div id="flag-value"></div>
+        <div id="flag-method"></div>
+      </div>
+      <div id="report-banner">
+        <h2>FLAG NOT FOUND - Analysis Report</h2>
+        <div id="report-content"></div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <div class="panel-header">Execution Log <span id="log-count" style="color:var(--gray)">0 events</span></div>
+        <div id="terminal"><span style="color:var(--gray)">// Waiting for input...</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const terminal=document.getElementById("terminal");
+const flagBanner=document.getElementById("flag-banner");
+const flagValue=document.getElementById("flag-value");
+const flagMethod=document.getElementById("flag-method");
+const reportBanner=document.getElementById("report-banner");
+const reportContent=document.getElementById("report-content");
+const spinner=document.getElementById("spinner");
+const solveBtn=document.getElementById("solve-btn");
+const logCount=document.getElementById("log-count");
+let n=0;
+function clearUI(){terminal.innerHTML="";flagBanner.style.display="none";reportBanner.style.display="none";n=0;logCount.textContent="0 events"}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function appendLog(e){n++;logCount.textContent=n+" events";const d=document.createElement("div");d.className="log-line lvl-"+e.level;d.innerHTML='<span class="log-ts">'+esc(e.ts||"")+'</span><span class="log-cat">['+esc((e.category||"?").toUpperCase())+']</span><span class="log-msg">'+esc(e.message||"")+'</span>';terminal.appendChild(d);terminal.scrollTop=terminal.scrollHeight}
+function showFlag(f,m){flagValue.textContent=f;flagMethod.textContent="Method: "+(m||"unknown");flagBanner.style.display="block";flagBanner.scrollIntoView({behavior:"smooth"})}
+function showReport(a){const t=(a.detected_types||[]).join(", ")||"none";const at=(a.attempted_methods||[]).join(", ")||"none";reportContent.innerHTML="<b>Detected types:</b> "+esc(t)+"<br><br><b>Attacks attempted:</b><br>"+esc(at).replace(/, /g,"<br> - ");reportBanner.style.display="block"}
+const dz=document.getElementById("dropzone"),fi=document.getElementById("file-input"),fl=document.getElementById("file-list");
+dz.addEventListener("dragover",e=>{e.preventDefault()});
+dz.addEventListener("drop",e=>{e.preventDefault();fi.files=e.dataTransfer.files;upd(fi.files)});
+fi.addEventListener("change",()=>upd(fi.files));
+function upd(fs){fl.innerHTML=Array.from(fs).map(f=>esc(f.name)+" ("+(f.size/1024).toFixed(1)+" KB)").join("<br>")}
+document.getElementById("solve-form").addEventListener("submit",async e=>{
+  e.preventDefault();clearUI();solveBtn.disabled=true;spinner.style.display="block";
+  const fd=new FormData(e.target);
+  try{
+    const r=await fetch("/solve",{method:"POST",body:fd});
+    const rd=r.body.getReader();const dec=new TextDecoder();let buf="";let fin=null;
+    while(true){
+      const{value,done}=await rd.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split("\n");buf=lines.pop();
+      for(const ln of lines){
+        if(!ln.startsWith("data: "))continue;
+        try{const o=JSON.parse(ln.slice(6));if(o.type==="log")appendLog(o.payload);else if(o.type==="result")fin=o.payload}catch(_){}
+      }
+    }
+    if(fin){if(fin.flag_found)showFlag(fin.flag,fin.method);else showReport(fin.analysis||{})}
+  }catch(err){appendLog({level:"error",category:"backend",message:"Error: "+err.message,ts:"!"})}
+  finally{solveBtn.disabled=false;spinner.style.display="none"}
+});
+</script>
+</body>
+</html>

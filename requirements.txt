@@ -1,0 +1,4 @@
+Flask>=3.0,<4
+gunicorn>=22,<24
+pycryptodome>=3.20,<4
+sympy>=1.12,<2
